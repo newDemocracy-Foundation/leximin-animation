@@ -21,7 +21,7 @@ let width = 900,
 	progressText,
 	floor, floorHeight,
 
-	svg, data,
+	svg, data, interval,
 
 	n = 100,
 	step = 1;
@@ -89,7 +89,7 @@ function draw() {
 		.attr("width", 0.8*xScale.bandwidth())
 		.attr("y", d => yScale(d.p))
 		.attr("height", 1)
-		.attr("fill", "#ff0000");
+		.attr("fill", "#039be5");
 
 	progress = svg.selectAll("line.progress")
 		.data([{ step }])
@@ -123,7 +123,7 @@ function draw() {
 		.attr("x2", xScale.range()[1])
 		.attr("y1", yScale(floorHeight) + 1)
 		.attr("y2", yScale(floorHeight) + 1)
-		.attr("stroke", "blue")
+		.attr("stroke", "red")
 		.attr("stroke-width", 1);
 
 }
@@ -183,18 +183,78 @@ function updateRanks(data) {
 function generateData(n) {
 	
 	let data = [];
+
+	function skewer(x, a) {
+		return (Math.exp(a*x - a) - Math.exp(-1*a)) / (Math.exp(0) - Math.exp(-1*a));
+	}
 	
 	for (let k = 0; k < n; k++) {
 		data.push({
 			id: n - k,
 			rank: n - k,
-			p: Math.random()
+			p: skewer(Math.random(), 3)
 		})
 	}
 
 	return data;
 }
 
+function performRandomSwap(data) {
+
+	let ids = data.map(d => d.id),
+		eligibleIds = data
+			.filter(d => d.rank <= n - step + 1)
+			.filter(d => d.rank > 1)
+			.map(d => d.id),
+		fromId = eligibleIds[Math.floor(Math.random()*eligibleIds.length)];
+
+	let toId = eligibleIds[Math.min(Math.max(eligibleIds.indexOf(fromId) + Math.floor(5*(Math.random()-1)), 0), eligibleIds.length-1)];
+	
+	let fromIdx = ids.indexOf(fromId),
+		toIdx = ids.indexOf(toId),
+		fromP = data[fromIdx].p,
+		toP = data[toIdx].p;
+
+	data[fromIdx].p = toP;
+	data[toIdx].p = fromP;
+
+	return data;
+
+}
+
+function updateData(data) {
+
+	function skewer(x, a) {
+		return (Math.exp(a*x - a) - Math.exp(-1*a)) / (Math.exp(0) - Math.exp(-1*a));
+	}
+
+	let ceilingHeight = Math.max(...data.filter(d => d.rank <= n - step + 1).map(d => d.p));
+
+	let newFloor = 0.2 * (1 - skewer(1 - (step/n), 60));
+	newFloor = Math.max(newFloor, floorHeight);
+
+	if (step < n) {
+		
+		data = data.map(function(d) {
+
+			if (d.rank <= n - step + 2) {
+				let pRelative = (d.p - floorHeight) / (ceilingHeight - floorHeight);
+				d.p = newFloor + (1-newFloor)*skewer(pRelative, 0.25*skewer(1-(step/n),2));
+			}
+
+			return d;
+		})
+
+		let nSwaps = 3 + Math.floor(10*Math.random());
+		for (let k = 0; k < nSwaps; k++) {
+			data = performRandomSwap(data);
+		}
+	}
+
+	data = updateRanks(data);
+
+	return data;
+}
 
 // ########################################################################## //
 // ########################################################################## //
@@ -206,18 +266,50 @@ data = updateRanks(data);
 update();
 
 function reset() {
+	if (interval !== undefined) {
+		interval.stop();
+	}
 	data = generateData(n);
 	data = updateRanks(data);
 	step = 1;
 	update();
+	document.querySelector("#play").classList.remove("hide");
+	document.querySelector("#pause").classList.add("hide");
 }
 document.querySelector("#reset").onclick = reset;
 
 function stepForward() {
 	if (step < n) {
 		step++;
+		data = updateData(data);
 		update();
 	}
 }
 document.querySelector("#step-forward").onclick = stepForward;
 
+function play() {
+	
+	document.querySelector("#play").classList.add("hide");
+	document.querySelector("#pause").classList.remove("hide");
+	
+	interval = d3.interval((elapsed) => {
+		stepForward();
+		if (step >= n) {
+			interval.stop();
+			document.querySelector("#play").classList.add("hide");
+			document.querySelector("#pause").classList.add("hide");
+		}
+	}, 200);
+
+}
+document.querySelector("#play").onclick = play;
+
+function pause() {
+	
+	document.querySelector("#play").classList.remove("hide");
+	document.querySelector("#pause").classList.add("hide");
+	
+	interval.stop();
+
+}
+document.querySelector("#pause").onclick = pause;

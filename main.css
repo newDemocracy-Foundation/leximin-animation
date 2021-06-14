@@ -16,6 +16,10 @@ body {
 	flex-direction: column;
 }
 
+.hide {
+	display: none;
+}
+
 svg {
 	display: block;
 	background-color: #fff;
