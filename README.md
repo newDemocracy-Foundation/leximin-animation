@@ -1,1 +1,1 @@
-# leximin-animation
+An animated data visualisation of the progress of the leximin algorithm for stratified random selection.
